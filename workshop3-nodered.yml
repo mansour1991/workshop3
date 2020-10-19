@@ -1,0 +1,7 @@
+version: "3.7"
+
+services: 
+  nodered:
+    image: nodered/node-red:latest
+    ports:
+      - "1880"
