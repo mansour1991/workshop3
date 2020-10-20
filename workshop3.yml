@@ -1,0 +1,118 @@
+version: "3.7"
+
+services:
+  nodered:
+    image: nodered/node-red:latest
+    #ports: 
+      #- "6008:1880" or you let the Docker engine find a free port for you:
+      #- 1880
+    networks:
+      - workshop3-net
+      - proxy-net
+    volumes: 
+      - workshop3-nodered:/data
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.to_secure_workshop3-nodered.entrypoints=secure_web"
+        - "traefik.http.routers.to_secure_workshop3-nodered.rule=Host(`quartiersmanager.ei.thm.de`)"
+        - "traefik.http.routers.to_secure_workshop3-nodered.tls=true"
+        #- "traefik.tcp.routers.mytcprouter.tls.passthrough=true"
+        - "traefik.http.services.nodered.loadbalancer.server.port=1880"
+
+  database:
+    image: bitnami/mongodb:latest
+    networks:
+      - workshop3-net
+    volumes: 
+      - workshop3-db:/bitnami/mongodb
+    environment:
+      - MONGODB_DISABLE_SYSTEM_LOG=false
+      - MONGODB_SYSTEM_LOG_VERBOSITY=0
+      - MONGODB_ENABLE_DIRECTORY_PER_DB=true
+      - MONGODB_ROOT_PASSWORD=password123
+      #create a database:
+      - MONGODB_DATABASE=database123
+      - MONGODB_USERNAME=user123
+      - MONGODB_PASSWORD=password123
+    
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    #ports: 
+    #  - 1883
+    networks:
+      - workshop3-net
+      - proxy-net
+    volumes:
+      - workshop3-mosquitto:/mosquitto/log
+    configs: 
+      - source: mosquitto-config
+        target: /mosquitto/config/mosquitto.conf
+    secrets: 
+      - source: mosquitto-password
+        target: /mosquitto/passwd
+    deploy:
+      labels: 
+        - "traefik.enable=true"
+        - "traefik.tcp.routers.to_secure_workshop3-mosquitto.entrypoints=secure_mqtt"
+        - "traefik.tcp.routers.to_secure_workshop3-mosquitto.rule=HostSNI(`quartiersmanager.ei.thm.de`)"
+        - "traefik.tcp.routers.to_secure_workshop3-mosquitto.tls=true"
+        #- "traefik.tcp.routers.mytcprouter.tls.passthrough=true"
+        - "traefik.tcp.services.secure_workshop3-mosquitto.loadbalancer.server.port=1883"
+  
+  mongo-express: 
+    image: mongo-express:latest
+    #ports:
+     # - 8081
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: password123
+      ME_CONFIG_MONGODB_SERVER: "database"
+      ME_CONFIG_BASICAUTH_USERNAME: "admin"
+      ME_CONFIG_BASICAUTH_PASSWORD: "workshop"
+      ME_CONFIG_SITE_BASEURL: "/mydb/"
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.to_secure_workshop3-mongoexpress.entrypoints=secure_web"
+        - "traefik.http.routers.to_secure_workshop3-mongoexpress.rule=HostHeader(`quartiersmanager.ei.thm.de`) && PathPrefix(`/mydb`)"
+        - "traefik.http.routers.to_secure_workshop3-mongoexpress.tls=true"
+        #- "traefik.http.middlewares.remove_prefix_from_workshop3-mongoexpress.stripprefix.prefixes=/mydb"
+        #- "traefik.http.middlewares.remove_prefix_from_workshop3-mongoexpress.stripprefix.forceSlash=true"
+        #- "traefik.http.routers.to_secure_workshop3-mongoexpress.middlewares=remove_prefix_from_workshop3-mongoexpress"
+        #- "traefik.tcp.routers.mytcprouter.tls.passthrough=true"
+        - "traefik.http.services.secure_workshop3-mongoexpress.loadbalancer.server.port=8081"
+      
+    networks: 
+      - workshop3-net
+      - proxy-net
+    
+
+
+
+networks:
+  workshop3-net:
+    external: true
+  proxy-net:
+    external: true
+
+
+volumes: 
+  workshop3-db:
+    external: true
+  workshop3-nodered:
+    external: true
+  workshop3-mosquitto:
+    external: true
+    
+
+configs:
+  mosquitto-config:
+    external: true
+    
+secrets:
+  mosquitto-password:
+    external: true
+
+
+    
